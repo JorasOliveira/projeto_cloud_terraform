@@ -7,7 +7,7 @@ resource "aws_cloudformation_stack" "mission_profile" {
     CreateReceiverInstance = "false"
     InstanceType           = "m5.4xlarge"
     S3Bucket               = aws_s3_bucket.bucket.id
-    SSHCidrBlock           = "200.153.153.111/32" #enter the public IP address of the computer you will use to conect to the EC2 instance
+    SSHCidrBlock           = "172.16.0.0/20" #enter the public IP address of the computer you will use to conect to the EC2 instance
     SSHKeyName             = "osm"   #enter the name of the SSH key pair you will use to connect to the EC2 instance
     SatelliteName          = "AQUA"
     SubnetId               = aws_subnet.subnet.id 
@@ -26,7 +26,7 @@ resource "aws_cloudformation_stack" "data_processing" {
     InstanceType           = "m5.4xlarge"
     IpoppPassword          = "Pl34s3CH4nG3M3" #password for the ipopp user in centOS, must be at least 8 characters in lenght
     S3Bucket               = aws_s3_bucket.bucket.id
-    SSHCidrBlock           = "200.153.153.111/32" #enter the public IP address of the computer you will use to conect to the EC2 instance
+    SSHCidrBlock           = "172.16.0.0/20" #enter the public IP address of the computer you will use to conect to the EC2 instance
     SSHKeyName             = "osm"   #enter the name of the SSH key pair you will use to connect to the EC2 instance
     SatelliteName          = "AQUA"
     SubnetId               = aws_subnet.subnet.id 
