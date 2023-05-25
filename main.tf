@@ -1,12 +1,19 @@
 # Configure the AWS Provider
 provider "aws" {
-  version = "~> 3.37"
   region  = "us-east-1"
 }
 
 
-# Criando bucket para salvar o Estado da Infraestrutura
+#configure the backend
 terraform {
+  #required aws provider and version
+  required_providers {
+    aws = {
+      source  = "hashicorp/aws"
+      version = "~> 5.0"
+    }
+  }
+  #s3 bucket to save the state file
   backend "s3" {
     bucket  = "jj-terraform-state-bucket"
     key     = "terraform.tsstate"

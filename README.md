@@ -91,20 +91,30 @@ Os arquivos terraform foram divididos da seguinte maneira:
 
 ```python
 # Configure the AWS Provider
+# Configure the AWS Provider
 provider "aws" {
-  version = "~> 3.37"
   region  = "us-east-1"
 }
 
-# Criando bucket para salvar o Estado da Infraestrutura
+#configure the backend
 terraform {
+  #required aws provider and version
+  required_providers {
+    aws = {
+      source  = "hashicorp/aws"
+      version = "~> 5.0"
+    }
+  }
+  #s3 bucket to save the state file
   backend "s3" {
-    bucket  = "<your-bucket-name-here>"
+    bucket  = "jj-terraform-state-bucket"
     key     = "terraform.tsstate"
     region  = "us-east-1"
     encrypt = true
   }
 }
+
+
 ```
 
 Arquivo principal do código, configura o provedor AWS e define a versão e a região a serem usadas. Para configurar o bloco para o usuário, é necessário substituir o valor "us-east-1" pela região desejada, caso não seja a região padrão desejada. Por exemplo, se o usuário deseja usar a região "sa-east-1" (São Paulo), deve substituir "us-east-1" por "sa-east-1".
