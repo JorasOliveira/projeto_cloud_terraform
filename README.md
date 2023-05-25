@@ -25,12 +25,9 @@ Siga os passos abaixo para instalar e configurar o ambiente de trabalho:
 1. Docker: Faça o download e a instalação do Docker de acordo com o seu sistema operacional. As instruções de instalação podem ser encontradas no site oficial do Docker: **[https://www.docker.com/get-started](https://www.docker.com/get-started)**.
 2. Chave de acesso da AWS: Acesse o Console de Gerenciamento da AWS e faça login em sua conta. Em seguida, vá para o serviço IAM (Identity and Access Management) e crie uma chave de acesso para o usuário que será usado com o Terraform. Anote a chave de acesso e a chave secreta, pois você precisará delas mais adiante.
 3. Preparação do ambiente: Abra um terminal ou prompt de comando e execute o seguinte comando para baixar a imagem do container Docker pré-configurado para o Terraform:
-    
-    ```bash
-    docker pull hashicorp/terraform
-    ```
-    
-4. Configuração das variáveis de ambiente: Para facilitar o uso do container Docker, é recomendado configurar algumas variáveis de ambiente. Execute os seguintes comandos no terminal ou prompt de comando:
+4. siga o guia da hashiCorp para a instalação do terraform e configuração do docker:
+[https://developer.hashicorp.com/terraform/tutorials/aws-get-started/install-cli](https://developer.hashicorp.com/terraform/tutorials/aws-get-started/install-cli)
+5. Configuração das variáveis de ambiente: Para facilitar o uso do container Docker, é recomendado configurar algumas variáveis de ambiente. Execute os seguintes comandos no terminal ou prompt de comando:
     
     ```jsx
     
@@ -59,7 +56,7 @@ Para iniciar o processo de recebimento dos dados do satélite AQUA na AWS Ground
 
 Para processar os dados RAW dos satélites americanos, é necessário criar uma conta no site da [DRL](https://directreadout.sci.gsfc.nasa.gov/loginDRL.cfm?cid=325&type=software) (Data Reception and Processing for Low Earth Orbiting Satellites) da NASA. Após criar a conta, é preciso baixar os programas "RT-STPS" e "IPOPP". Esses softwares são responsáveis por tratar e processar os dados RAW em diferentes níveis, desde o nível L0 (RT-STPS) até os níveis L1, L2 e L3 (IPOPP). Para obter mais informações sobre os diferentes níveis de dados, recomenda-se consultar o [site da NASA](https://earthdata.nasa.gov/collaborate/open-data-services-and-software/data-information-policy/data-levels).
 
-Depois de baixar os programas, salve-os em uma pasta dentro do diretório dos arquivos do Terraform e altere os nomes dos destinos de acordo no arquivo. Para este guia, deixaremos os arquivos dentro da seguinte estrutura: nasa_files/software/<nome do programa aqui>.
+Depois de baixar os programas, salve-os em uma pasta dentro do diretório dos arquivos do Terraform e altere os nomes dos destinos de acordo no arquivo. Para este guia, deixaremos os arquivos dentro da seguinte estrutura: nasa_files/software/<nome do programa aqui>. Garanta que a pasta nasa _files esteja dentro do diretório com os outros arquivos terraform.
 
 Por questões de segurança, a NASA definiu que o software IPOPP deve ser baixado e executado na mesma máquina, dentro de um período de 24 horas a partir do download inicial. Para utilizarmos esse software na instância EC2, será necessário fazer o SSH para a própria instância, baixar e executar o programa diretamente na máquina. Com isso em mente, não há necessidade de baixá-lo nesta etapa inicial.
 
@@ -91,30 +88,20 @@ Os arquivos terraform foram divididos da seguinte maneira:
 
 ```python
 # Configure the AWS Provider
-# Configure the AWS Provider
 provider "aws" {
+  version = "~> 3.37"
   region  = "us-east-1"
 }
 
-#configure the backend
+# Criando bucket para salvar o Estado da Infraestrutura
 terraform {
-  #required aws provider and version
-  required_providers {
-    aws = {
-      source  = "hashicorp/aws"
-      version = "~> 5.0"
-    }
-  }
-  #s3 bucket to save the state file
   backend "s3" {
-    bucket  = "jj-terraform-state-bucket"
+    bucket  = "<your-bucket-name-here>"
     key     = "terraform.tsstate"
     region  = "us-east-1"
     encrypt = true
   }
 }
-
-
 ```
 
 Arquivo principal do código, configura o provedor AWS e define a versão e a região a serem usadas. Para configurar o bloco para o usuário, é necessário substituir o valor "us-east-1" pela região desejada, caso não seja a região padrão desejada. Por exemplo, se o usuário deseja usar a região "sa-east-1" (São Paulo), deve substituir "us-east-1" por "sa-east-1".
@@ -125,9 +112,96 @@ Por fim, caso deseje desativar a criptografia do estado do Terraform, basta alte
 
 ### s3_bucket.tf
 
-```python
-
+```bash
+# Create an S3 bucket
+resource "aws_s3_bucket" "bucket" {
+  bucket = "<SEU-BUCKET-AQUI>"
+}
 ```
+
+Criamos o S3 bucket necessario para todo o processo, os arquivos necessários serão salvos neste bucket, junto com os dados finais.
+
+### AIM role:
+
+```bash
+resource "aws_iam_user" "example_user" {
+  name = "<NOME-DO-USUÁRIO-AQUI>"
+}
+
+resource "aws_iam_user_policy_attachment" "example_user_attachment" {
+  user       = aws_iam_user.example_user.name
+  policy_arn = "arn:aws:iam::aws:policy/AmazonS3FullAccess"
+}
+```
+
+anexa a política AmazonS3FullAccess ao usuário IAM criado anteriormente. Isso concederá permissões completas de acesso ao Amazon S3 para o usuário. Esta etapa é necessária para que executemos a próxima. 
+
+Lembre-se de substituir os valores entre **`<NOME-DE-USUARIO-AQUI>`** pelo  nome específico do usuário que você deseja dar permissão.
+
+### Upload de arquivos para o S3 bucket:
+
+Para poder processar os dados de AQUA, sera necessario fazer upload de multiplos arquivos. alguns já estão baixados dentro da pasta nasa _files, enquanto outros virão de um s3 criado pela equipe da amazon, para facilitar o processo de demodulação e processamento dos dados do satélite, os arquivos copiados do s3 pré existente começam com o endereço: s3://aws-gs-blog/software/data-receiver/ 
+
+Estamos copiando os seguintes arquivos do S3:
+
+- receivedata.py
+- awsgs.py
+- start-data-capture.sh
+- ipopp-ingest.sh
+- install-ipopp.sh
+
+```python
+# Copiar o arquivo RT-STPS_7.0.tar.gz para o bucket S3
+resource "null_resource" "copy_RT_STPS_7_0" {
+  provisioner "local-exec" {
+    command = "aws s3 cp nasa_files/software/RT-STPS/RT-STPS_7.0.tar.gz s3://<SEU-BUCKET-AQUI>/software/RT-STPS/"
+  }
+}
+
+# Copiar o arquivo RT-STPS_7.0_PATCH_1.tar.gz para o bucket S3
+resource "null_resource" "copy_RT_STPS_7_0_PATCH_1" {
+  provisioner "local-exec" {
+    command = "aws s3 cp nasa_files/software/RT-STPS/RT-STPS_7.0_PATCH_1.tar.gz s3://<SEU-BUCKET-AQUI>/software/RT-STPS/"
+  }
+}
+
+# Copiar o arquivo receivedata.py para o bucket S3 com permissões bucket-owner-full-control
+resource "null_resource" "copy_receivedata_py" {
+  provisioner "local-exec" {
+    command = "aws s3 cp --acl bucket-owner-full-control s3://aws-gs-blog/software/data-receiver/receivedata.py s3://<SEU-BUCKET-AQUI>/software/data-receiver/ --source-region us-east-2 --region us-east-1"
+  }
+}
+
+# Copiar o arquivo awsgs.py para o bucket S3 com permissões bucket-owner-full-control
+resource "null_resource" "copy_awsgs_py" {
+  provisioner "local-exec" {
+    command = "aws s3 cp --acl bucket-owner-full-control s3://aws-gs-blog/software/data-receiver/awsgs.py s3://<SEU-BUCKET-AQUI>/software/data-receiver/ --source-region us-east-2 --region us-east-1"
+  }
+}
+
+# Copiar o arquivo start-data-capture.sh para o bucket S3 com permissões bucket-owner-full-control
+resource "null_resource" "copy_start_data_capture_sh" {
+  provisioner "local-exec" {
+    command = "aws s3 cp --acl bucket-owner-full-control s3://aws-gs-blog/software/data-receiver/start-data-capture.sh s3://<SEU-BUCKET-AQUI>/software/data-receiver/ --source-region us-east-2 --region us-east-1"
+  }
+}
+
+# Copiar o arquivo ipopp-ingest.sh para o bucket S3 com permissões bucket-owner-full-control
+resource "null_resource" "copy_ipopp_ingest_sh" {
+  provisioner "local-exec" {
+    command = "aws s3 cp --acl bucket-owner-full-control s3://aws-gs-blog/software/IPOPP/ipopp-ingest.sh s3://<SEU-BUCKET-AQUI>/software/IPOPP/ --source-region us-east-2 --region us-east-1"
+  }
+}
+
+# Copiar o arquivo install-ipopp.sh para o bucket S3 com permissões bucket-owner-full-control
+resource "null_resource" "copy_install_ipopp_sh" {
+  provisioner "local-exec" {
+    command = "aws s3 cp --acl bucket-owner-full-control s3://aws-gs-blog/software/IPOPP/install-ipopp.sh s3://<SEU-BUCKET-AQUI>/software/IPOPP/ --source-region us-east-2 --region us-east-1"
+  }
+}
+```
+
+Cada bloco apenas executa o comando no seu terminal, todos os comandos são para o CLI da AWS.
 
 ### cloud_formation_stacks.tf:
 
