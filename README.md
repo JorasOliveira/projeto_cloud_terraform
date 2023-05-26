@@ -315,12 +315,32 @@ Para configurar este bloco, siga as instruções abaixo:
 ### vpc.tf
 
 ```python
+# Create VPC
 resource "aws_vpc" "vpc" {
   cidr_block = "<CIDR-BLOCK-HERE>" #enter the CIDR block you want to use for the VPC
   tags = {
     Name = "<NAME-HERE>"
   }
 }
+
+
+# Create Internet Gateway
+resource "aws_internet_gateway" "example" {
+  vpc_id = aws_vpc.vpc.id
+  tags = {
+    Name = "internet-gateway"
+  }
+}
+
+# Create Route Table
+resource "aws_route_table" "table" {
+  vpc_id = aws_vpc.vpc.id
+
+  tags = {
+    Name = "route-table"
+  }
+}
+
 
 #then create a subnet
 resource "aws_subnet" "subnet" {
@@ -332,6 +352,12 @@ resource "aws_subnet" "subnet" {
   tags = {
     Name = "<SUBNET-NAME-HERE>"
   }
+}
+
+# Associate Route Table with Subnet
+resource "aws_route_table_association" "router_table" {
+  subnet_id      = aws_subnet.subnet.id
+  route_table_id = aws_route_table.table.id
 }
 ```
 
