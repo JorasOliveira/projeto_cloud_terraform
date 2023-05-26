@@ -89,14 +89,21 @@ Os arquivos terraform foram divididos da seguinte maneira:
 ```python
 # Configure the AWS Provider
 provider "aws" {
-  version = "~> 3.37"
   region  = "us-east-1"
 }
 
-# Criando bucket para salvar o Estado da Infraestrutura
+#configure the backend
 terraform {
+  #required aws provider and version
+  required_providers {
+    aws = {
+      source  = "hashicorp/aws"
+      version = "~> 5.0"
+    }
+  }
+  #s3 bucket to save the state file
   backend "s3" {
-    bucket  = "<your-bucket-name-here>"
+    bucket  = "<BUCKET-NAME-FOR-TFSTATE-HERE>"
     key     = "terraform.tsstate"
     region  = "us-east-1"
     encrypt = true
@@ -124,19 +131,46 @@ Criamos o S3 bucket necessario para todo o processo, os arquivos necessários se
 ### AIM role:
 
 ```bash
-resource "aws_iam_user" "example_user" {
-  name = "<NOME-DO-USUÁRIO-AQUI>"
+variable "user_names" {
+  type    = list(string)
+  default = ["<USER-NAMES-HERE>", "<USER-NAMES-HERE>" ,"<USER-NAMES-HERE>"]  # Add the list of user names here
 }
 
-resource "aws_iam_user_policy_attachment" "example_user_attachment" {
-  user       = aws_iam_user.example_user.name
+resource "aws_iam_user" "users" {
+  count = length(var.user_names)
+  name  = var.user_names[count.index]
+}
+
+resource "aws_iam_user_policy_attachment" "user_attachment" {
+  count = length(var.user_names)
+  user       = aws_iam_user.users[count.index].name
   policy_arn = "arn:aws:iam::aws:policy/AmazonS3FullAccess"
 }
+
+resource "aws_iam_user_policy_attachment" "user_service_role_attachment" {
+  count = length(var.user_names)
+  user       = aws_iam_user.users[count.index].name
+  policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonEC2ContainerServiceforEC2Role"
+}
+
+resource "aws_iam_user_policy_attachment" "user_cloudwatch_agent_attachment" {
+  count = length(var.user_names)
+  user       = aws_iam_user.users[count.index].name
+  policy_arn = "arn:aws:iam::aws:policy/CloudWatchAgentServerPolicy"
+}
+
+resource "aws_iam_user_policy_attachment" "user_ssm_managed_instance_attachment" {
+  count = length(var.user_names)
+  user       = aws_iam_user.users[count.index].name
+  policy_arn = "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"
+}
+
+
 ```
 
-anexa a política AmazonS3FullAccess ao usuário IAM criado anteriormente. Isso concederá permissões completas de acesso ao Amazon S3 para o usuário. Esta etapa é necessária para que executemos a próxima. 
+anexa a política AmazonS3FullAccess aos usuários IAM criados anteriormente. Isso concederá permissões completas de acesso ao Amazon S3 para os usuários. Esta etapa é necessária para que executemos a próxima. 
 
-Lembre-se de substituir os valores entre **`<NOME-DE-USUARIO-AQUI>`** pelo  nome específico do usuário que você deseja dar permissão.
+Lembre-se de substituir os valores entre **`<USER-NAMES-HERE>`** pelos nomes específicos dos usuários que você deseja dar permissão.
 
 ### Upload de arquivos para o S3 bucket:
 
