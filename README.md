@@ -8,26 +8,21 @@ Além disso, o projeto inclui a configuração do CloudWatch para monitorar de f
 
 ## Infraestrutura necessária:
 
-### Docker:
+### Dependencias:
 
-Este guia tem como objetivo auxiliar na configuração da infraestrutura necessária para utilizar o container Docker pré-configurado para o Terraform. O container Docker é uma opção conveniente e portátil para executar o Terraform em qualquer ambiente sem a necessidade de configurar manualmente todas as dependências.
-
-Infraestrutura Necessária:
-Para utilizar o container Docker pré-configurado para o Terraform, você precisará ter as seguintes ferramentas e serviços configurados:
-
-1. Docker: Certifique-se de ter o Docker instalado em seu sistema operacional. O Docker é uma plataforma de virtualização leve e fácil de usar que permite empacotar e executar aplicativos em um ambiente isolado.
-2. Conta da AWS: É necessário ter uma conta na AWS para criar e gerenciar recursos na nuvem. Se você ainda não tem uma conta, pode criar uma gratuitamente em **[https://aws.amazon.com/pt/free](https://aws.amazon.com/pt/free)**.
-3. Chave de Acesso da AWS: Para interagir com a AWS, você precisará de uma chave de acesso (Access Key) e uma chave secreta (Secret Key). Essas informações serão usadas para autenticar suas solicitações na AWS.
+1. Conta da AWS: É necessário ter uma conta na AWS para criar e gerenciar recursos na nuvem. Se você ainda não tem uma conta, pode criar uma gratuitamente em **[https://aws.amazon.com/pt/free](https://aws.amazon.com/pt/free)**.
+2. Chave de Acesso da AWS: Para interagir com a AWS, você precisará de uma chave de acesso (Access Key) e uma chave secreta (Secret Key). Essas informações serão usadas para autenticar suas solicitações na AWS.
+3. AWS CLI instalado e funcionando
 
 Instalação e Configuração:
 Siga os passos abaixo para instalar e configurar o ambiente de trabalho:
 
-1. Docker: Faça o download e a instalação do Docker de acordo com o seu sistema operacional. As instruções de instalação podem ser encontradas no site oficial do Docker: **[https://www.docker.com/get-started](https://www.docker.com/get-started)**.
-2. Chave de acesso da AWS: Acesse o Console de Gerenciamento da AWS e faça login em sua conta. Em seguida, vá para o serviço IAM (Identity and Access Management) e crie uma chave de acesso para o usuário que será usado com o Terraform. Anote a chave de acesso e a chave secreta, pois você precisará delas mais adiante.
-3. Preparação do ambiente: Abra um terminal ou prompt de comando e execute o seguinte comando para baixar a imagem do container Docker pré-configurado para o Terraform:
-4. siga o guia da hashiCorp para a instalação do terraform e configuração do docker:
+Terraform:
+
+1. Chave de acesso da AWS: Acesse o Console de Gerenciamento da AWS e faça login em sua conta. Em seguida, vá para o serviço IAM (Identity and Access Management) e crie uma chave de acesso para o usuário que será usado com o Terraform. Anote a chave de acesso e a chave secreta, pois você precisará delas mais adiante.
+2. siga o guia da hashiCorp para a instalação do terraform e configuração do docker:
 [https://developer.hashicorp.com/terraform/tutorials/aws-get-started/install-cli](https://developer.hashicorp.com/terraform/tutorials/aws-get-started/install-cli)
-5. Configuração das variáveis de ambiente: Para facilitar o uso do container Docker, é recomendado configurar algumas variáveis de ambiente. Execute os seguintes comandos no terminal ou prompt de comando:
+3. Configuração das variáveis de ambiente: Para facilitar o uso do container Docker, é recomendado configurar algumas variáveis de ambiente. Execute os seguintes comandos no terminal ou prompt de comando:
     
     ```jsx
     
@@ -38,7 +33,7 @@ Siga os passos abaixo para instalar e configurar o ambiente de trabalho:
     Substitua **`<sua_access_key>`** e **`<sua_secret_key>`** pelos valores correspondentes da sua chave de acesso da AWS.
     
 
-### AWS CLI:
+AWS CLI:
 
 Para baixar, instalar e configurar a AWS Command Line Interface (CLI), siga as etapas a seguir:
 
@@ -60,9 +55,13 @@ Depois de baixar os programas, salve-os em uma pasta dentro do diretório dos ar
 
 Por questões de segurança, a NASA definiu que o software IPOPP deve ser baixado e executado na mesma máquina, dentro de um período de 24 horas a partir do download inicial. Para utilizarmos esse software na instância EC2, será necessário fazer o SSH para a própria instância, baixar e executar o programa diretamente na máquina. Com isso em mente, não há necessidade de baixá-lo nesta etapa inicial.
 
+### Policies da AWS:
+
+garanta que seu usuário da AWS tem a role **AmazonS3FullAccess.**
+
 # Terraform:
 
-Para rodar os arquivos, abra o container docker na pasta que os arquivos estao salvos, depois disso, rode os seguintes comandos:
+Para rodar os arquivos,  rode os seguintes comandos:
 
 ```python
 terraform init
@@ -89,21 +88,14 @@ Os arquivos terraform foram divididos da seguinte maneira:
 ```python
 # Configure the AWS Provider
 provider "aws" {
+  version = "~> 3.37"
   region  = "us-east-1"
 }
 
-#configure the backend
+# Criando bucket para salvar o Estado da Infraestrutura
 terraform {
-  #required aws provider and version
-  required_providers {
-    aws = {
-      source  = "hashicorp/aws"
-      version = "~> 5.0"
-    }
-  }
-  #s3 bucket to save the state file
   backend "s3" {
-    bucket  = "<BUCKET-NAME-FOR-TFSTATE-HERE>"
+    bucket  = "<your-bucket-name-here>"
     key     = "terraform.tsstate"
     region  = "us-east-1"
     encrypt = true
@@ -128,49 +120,89 @@ resource "aws_s3_bucket" "bucket" {
 
 Criamos o S3 bucket necessario para todo o processo, os arquivos necessários serão salvos neste bucket, junto com os dados finais.
 
-### AIM role:
-
-```bash
-variable "user_names" {
-  type    = list(string)
-  default = ["<USER-NAMES-HERE>", "<USER-NAMES-HERE>" ,"<USER-NAMES-HERE>"]  # Add the list of user names here
-}
-
-resource "aws_iam_user" "users" {
-  count = length(var.user_names)
-  name  = var.user_names[count.index]
-}
-
-resource "aws_iam_user_policy_attachment" "user_attachment" {
-  count = length(var.user_names)
-  user       = aws_iam_user.users[count.index].name
-  policy_arn = "arn:aws:iam::aws:policy/AmazonS3FullAccess"
-}
-
-resource "aws_iam_user_policy_attachment" "user_service_role_attachment" {
-  count = length(var.user_names)
-  user       = aws_iam_user.users[count.index].name
-  policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonEC2ContainerServiceforEC2Role"
-}
-
-resource "aws_iam_user_policy_attachment" "user_cloudwatch_agent_attachment" {
-  count = length(var.user_names)
-  user       = aws_iam_user.users[count.index].name
-  policy_arn = "arn:aws:iam::aws:policy/CloudWatchAgentServerPolicy"
-}
-
-resource "aws_iam_user_policy_attachment" "user_ssm_managed_instance_attachment" {
-  count = length(var.user_names)
-  user       = aws_iam_user.users[count.index].name
-  policy_arn = "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"
-}
-
-
 ```
+resource "aws_vpc" "vpc" {
+  cidr_block = "172.16.0.0/20" #enter the CIDR block you want to use for the VPC
+  tags = {
+    Name = "VPC_AQUA"
+  }
+}
 
-anexa a política AmazonS3FullAccess aos usuários IAM criados anteriormente. Isso concederá permissões completas de acesso ao Amazon S3 para os usuários. Esta etapa é necessária para que executemos a próxima. 
+# Create Internet Gateway
+resource "aws_internet_gateway" "example" {
+  vpc_id = aws_vpc.vpc.id
+  tags = {
+    Name = "internet-gateway"
+  }
+}
 
-Lembre-se de substituir os valores entre **`<USER-NAMES-HERE>`** pelos nomes específicos dos usuários que você deseja dar permissão.
+# Create Route Table
+resource "aws_route_table" "table" {
+  vpc_id = aws_vpc.vpc.id
+
+  tags = {
+    Name = "route-table"
+  }
+}
+
+#then create a subnet
+resource "aws_subnet" "subnet" {
+  vpc_id                  = aws_vpc.vpc.id
+  cidr_block              = "172.16.0.0/24" #enter the CIDR block you want to use for the subnet
+  availability_zone       = "us-east-1a" #enter the availability zone you want to use for the subnet
+  map_public_ip_on_launch = true
+
+  tags = {
+    Name = "subnet_AQUA"
+  }
+}
+
+# Associate Route Table with Subnet
+resource "aws_route_table_association" "router_table" {
+  subnet_id      = aws_subnet.subnet.id
+  route_table_id = aws_route_table.table.id
+}resource "aws_vpc" "vpc" {
+  cidr_block = "172.16.0.0/20" #enter the CIDR block you want to use for the VPC
+  tags = {
+    Name = "VPC_AQUA"
+  }
+}
+
+# Create Internet Gateway
+resource "aws_internet_gateway" "example" {
+  vpc_id = aws_vpc.vpc.id
+  tags = {
+    Name = "internet-gateway"
+  }
+}
+
+# Create Route Table
+resource "aws_route_table" "table" {
+  vpc_id = aws_vpc.vpc.id
+
+  tags = {
+    Name = "route-table"
+  }
+}
+
+#then create a subnet
+resource "aws_subnet" "subnet" {
+  vpc_id                  = aws_vpc.vpc.id
+  cidr_block              = "172.16.0.0/24" #enter the CIDR block you want to use for the subnet
+  availability_zone       = "us-east-1a" #enter the availability zone you want to use for the subnet
+  map_public_ip_on_launch = true
+
+  tags = {
+    Name = "subnet_AQUA"
+  }
+}
+
+# Associate Route Table with Subnet
+resource "aws_route_table_association" "router_table" {
+  subnet_id      = aws_subnet.subnet.id
+  route_table_id = aws_route_table.table.id
+}
+```
 
 ### Upload de arquivos para o S3 bucket:
 
@@ -315,20 +347,18 @@ Para configurar este bloco, siga as instruções abaixo:
 ### vpc.tf
 
 ```python
-# Create VPC
 resource "aws_vpc" "vpc" {
-  cidr_block = "<CIDR-BLOCK-HERE>" #enter the CIDR block you want to use for the VPC
+  cidr_block = "172.16.0.0/20" #enter the CIDR block you want to use for the VPC
   tags = {
     Name = "<NAME-HERE>"
   }
 }
 
-
 # Create Internet Gateway
 resource "aws_internet_gateway" "example" {
   vpc_id = aws_vpc.vpc.id
   tags = {
-    Name = "internet-gateway"
+    Name = "<NAME-HERE>"
   }
 }
 
@@ -337,20 +367,19 @@ resource "aws_route_table" "table" {
   vpc_id = aws_vpc.vpc.id
 
   tags = {
-    Name = "route-table"
+    Name = "<NAME-HERE>"
   }
 }
-
 
 #then create a subnet
 resource "aws_subnet" "subnet" {
   vpc_id                  = aws_vpc.vpc.id
-  cidr_block              = "<SUBNET-RANGE-HERE>" #enter the CIDR block you want to use for the subnet
+  cidr_block              = "<CIDR-BLOCK-HERE>" #enter the CIDR block you want to use for the subnet
   availability_zone       = "us-east-1a" #enter the availability zone you want to use for the subnet
   map_public_ip_on_launch = true
 
   tags = {
-    Name = "<SUBNET-NAME-HERE>"
+    Name = "<NAME-HERE>"
   }
 }
 
