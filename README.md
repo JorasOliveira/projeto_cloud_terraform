@@ -317,6 +317,8 @@ Mission profile:
 
 Este bloco de código do Terraform permite criar uma pilha do CloudFormation para definir o Perfil de Missão. O Perfil de Missão contém as configurações necessárias para a missão do satélite AQUA, para este stack, foi utilizado um template criado pela equipe da AWS com fins didaticos, este template configura todas as ações necessárias para receber, demodular e processar o sinal RAW do satélite AQUA, salvando-o de volta no bucket s3 ja como dados de nivel L0.
 
+
+
 Para configurar este bloco, siga as instruções abaixo:
 
 1. Substitua "<your-stack-name-here>" pelo nome desejado para a pilha. Escolha um nome que seja descritivo e único.
@@ -329,6 +331,8 @@ Para configurar este bloco, siga as instruções abaixo:
     - "SatelliteName": Insira o nome do satélite, neste caso, "AQUA".
 
 Após fazer essas alterações, você pode executar o código do Terraform para criar a pilha do CloudFormation e definir o Perfil de Missão para o satélite AQUA.
+
+Será necessário manualmente alterar o parâmetro "CreateReceiverInstance" para true antes do contato com o satélite, o recomendado é fazer isto aproximadamente 15 minutos antes do contato.
 
 Processor Stack:
 
